@@ -4,7 +4,6 @@ const { promisify } = require('util');
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
-const mkdir = promisify(fs.mkdir);
 const rename = promisify(fs.rename);
 const unlink = promisify(fs.unlink);
 
@@ -70,15 +69,15 @@ class FileBackedMemoryStore {
     try {
       // Write to temporary file first
       await writeFile(this.tempPath, JSON.stringify(store, null, 2), 'utf-8');
-      
+
       // Atomic rename
       await rename(this.tempPath, this.storePath);
-      
+
       // Update cache
       this.cache = store;
     } catch (error) {
       console.error('[MemoryStore] Error saving memory store:', error);
-      
+
       // Clean up temp file if it exists
       try {
         if (fs.existsSync(this.tempPath)) {
@@ -87,7 +86,7 @@ class FileBackedMemoryStore {
       } catch (cleanupError) {
         console.error('[MemoryStore] Error cleaning up temp file:', cleanupError);
       }
-      
+
       throw error;
     }
   }
@@ -110,7 +109,7 @@ class FileBackedMemoryStore {
    */
   async addMemoryItem(conversationId, content) {
     const store = await this.load();
-    
+
     if (!store[conversationId]) {
       store[conversationId] = [];
     }
@@ -125,7 +124,7 @@ class FileBackedMemoryStore {
 
     store[conversationId].push(memoryItem);
     await this.save(store);
-    
+
     return memoryItem;
   }
 
@@ -138,13 +137,13 @@ class FileBackedMemoryStore {
    */
   async updateMemoryItem(conversationId, itemId, updates) {
     const store = await this.load();
-    
+
     if (!store[conversationId]) {
       return null;
     }
 
     const itemIndex = store[conversationId].findIndex((item) => item.id === itemId);
-    
+
     if (itemIndex === -1) {
       return null;
     }
@@ -158,7 +157,7 @@ class FileBackedMemoryStore {
 
     store[conversationId][itemIndex] = updatedItem;
     await this.save(store);
-    
+
     return updatedItem;
   }
 
@@ -170,14 +169,14 @@ class FileBackedMemoryStore {
    */
   async deleteMemoryItem(conversationId, itemId) {
     const store = await this.load();
-    
+
     if (!store[conversationId]) {
       return false;
     }
 
     const initialLength = store[conversationId].length;
     store[conversationId] = store[conversationId].filter((item) => item.id !== itemId);
-    
+
     if (store[conversationId].length === initialLength) {
       return false; // Item not found
     }

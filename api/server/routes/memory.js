@@ -27,11 +27,11 @@ router.post('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { content } = req.body;
-    
+
     if (!content || typeof content !== 'string') {
       return res.status(400).json({ message: 'content is required and must be a string' });
     }
-    
+
     const memoryItem = await memoryStore.addMemoryItem(conversationId, content);
     res.json(memoryItem);
   } catch (error) {
@@ -48,13 +48,13 @@ router.patch('/:conversationId/:itemId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId, itemId } = req.params;
     const updates = req.body;
-    
+
     const updatedItem = await memoryStore.updateMemoryItem(conversationId, itemId, updates);
-    
+
     if (!updatedItem) {
       return res.status(404).json({ message: 'Memory item not found' });
     }
-    
+
     res.json(updatedItem);
   } catch (error) {
     console.error('[Memory API] Error updating memory item:', error);
@@ -70,11 +70,11 @@ router.delete('/:conversationId/:itemId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId, itemId } = req.params;
     const deleted = await memoryStore.deleteMemoryItem(conversationId, itemId);
-    
+
     if (!deleted) {
       return res.status(404).json({ message: 'Memory item not found' });
     }
-    
+
     res.json({ message: 'Memory item deleted successfully' });
   } catch (error) {
     console.error('[Memory API] Error deleting memory item:', error);

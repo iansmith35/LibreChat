@@ -15,20 +15,19 @@ router.get('/google/login', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const state = `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Store state for verification
     tokenStore.set(state, { userId, timestamp: Date.now() });
-    
+
     // In a real implementation, construct OAuth URL with proper client ID and scopes
     // For now, return a placeholder
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
       process.env.GOOGLE_OAUTH_CLIENT_ID || 'YOUR_CLIENT_ID'
     }&redirect_uri=${encodeURIComponent(
-      process.env.GOOGLE_OAUTH_REDIRECT_URI || 'http://localhost:3080/api/connectors/google/callback',
-    )}&response_type=code&scope=${encodeURIComponent(
-      'openid email profile',
-    )}&state=${state}`;
-    
+      process.env.GOOGLE_OAUTH_REDIRECT_URI ||
+        'http://localhost:3080/api/connectors/google/callback',
+    )}&response_type=code&scope=${encodeURIComponent('openid email profile')}&state=${state}`;
+
     res.json({ authUrl, state });
   } catch (error) {
     console.error('[GoogleOAuth] Error initiating login:', error);
@@ -43,24 +42,24 @@ router.get('/google/login', requireJwtAuth, async (req, res) => {
 router.get('/google/callback', async (req, res) => {
   try {
     const { code, state, error } = req.query;
-    
+
     if (error) {
       return res.status(400).json({ message: 'OAuth error', error });
     }
-    
+
     if (!code || !state) {
       return res.status(400).json({ message: 'Missing code or state parameter' });
     }
-    
+
     // Verify state
     const stateData = tokenStore.get(state);
     if (!stateData) {
       return res.status(400).json({ message: 'Invalid state parameter' });
     }
-    
+
     // Clean up used state
     tokenStore.delete(state);
-    
+
     // In a real implementation, exchange code for tokens
     // For now, simulate token exchange
     const mockTokens = {
@@ -68,13 +67,13 @@ router.get('/google/callback', async (req, res) => {
       refresh_token: `mock_refresh_token_${Date.now()}`,
       expires_in: 3600,
     };
-    
+
     // Store tokens for the user
     tokenStore.set(`google_${stateData.userId}`, {
       ...mockTokens,
       timestamp: Date.now(),
     });
-    
+
     // Return HTML to close popup and notify parent window
     res.send(`
       <!DOCTYPE html>
@@ -111,7 +110,7 @@ router.get('/google/status', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const tokens = tokenStore.get(`google_${userId}`);
-    
+
     res.json({
       connected: !!tokens,
       provider: 'google',
@@ -130,7 +129,7 @@ router.delete('/google/disconnect', requireJwtAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     tokenStore.delete(`google_${userId}`);
-    
+
     res.json({ message: 'Google account disconnected successfully' });
   } catch (error) {
     console.error('[GoogleOAuth] Error disconnecting:', error);

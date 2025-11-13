@@ -50,7 +50,7 @@ function getVoiceConfig() {
  */
 function initializeGoogleCloudClients() {
   const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_KEY;
-  
+
   if (!hasCredentials) {
     return { enabled: false, message: 'Google Cloud credentials not configured' };
   }
@@ -61,7 +61,7 @@ function initializeGoogleCloudClients() {
     const textToSpeech = require('@google-cloud/text-to-speech');
 
     let clientConfig = {};
-    
+
     // If GOOGLE_CLOUD_KEY is provided (JSON string), use it
     if (process.env.GOOGLE_CLOUD_KEY) {
       try {
@@ -154,14 +154,14 @@ router.post('/tts', requireJwtAuth, async (req, res) => {
 
   try {
     const { text, voiceName } = req.body;
-    
+
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ message: 'text is required and must be a string' });
     }
 
     // Use default voice config or custom voice
     let voiceConfig = getVoiceConfig();
-    
+
     // If voiceName is 'Vale' or not provided, use default
     if (!voiceName || voiceName === DEFAULT_VOICE_NAME) {
       voiceConfig = getVoiceConfig();
@@ -177,7 +177,7 @@ router.post('/tts', requireJwtAuth, async (req, res) => {
 
     // Return audio as base64
     const audioContent = response.audioContent.toString('base64');
-    
+
     res.json({
       audio: audioContent,
       format: 'mp3',

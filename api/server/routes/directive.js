@@ -12,11 +12,11 @@ router.get('/directive/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const directive = await directiveStore.getDirective(conversationId);
-    
+
     if (!directive) {
       return res.status(404).json({ message: 'Directive not found' });
     }
-    
+
     res.json(directive);
   } catch (error) {
     console.error('[Directive API] Error getting directive:', error);
@@ -32,18 +32,18 @@ router.post('/directive/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { systemPrompt, personality, memoryPolicy } = req.body;
-    
+
     if (!systemPrompt || typeof systemPrompt !== 'string') {
       return res.status(400).json({ message: 'systemPrompt is required and must be a string' });
     }
-    
+
     const directive = await directiveStore.saveDirective(
       conversationId,
       systemPrompt,
       personality,
       memoryPolicy,
     );
-    
+
     res.json(directive);
   } catch (error) {
     console.error('[Directive API] Error saving directive:', error);
@@ -74,11 +74,11 @@ router.delete('/directive/:conversationId', requireJwtAuth, async (req, res) => 
   try {
     const { conversationId } = req.params;
     const deleted = await directiveStore.deleteDirective(conversationId);
-    
+
     if (!deleted) {
       return res.status(404).json({ message: 'Directive not found' });
     }
-    
+
     res.json({ message: 'Directive deleted successfully' });
   } catch (error) {
     console.error('[Directive API] Error deleting directive:', error);

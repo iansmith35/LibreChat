@@ -92,7 +92,7 @@ class DirectiveStore {
       this.cache = directives;
     } catch (error) {
       console.error('[DirectiveStore] Error saving directives:', error);
-      
+
       try {
         if (fs.existsSync(this.tempPath)) {
           await unlink(this.tempPath);
@@ -100,7 +100,7 @@ class DirectiveStore {
       } catch (cleanupError) {
         console.error('[DirectiveStore] Error cleaning up temp file:', cleanupError);
       }
-      
+
       throw error;
     }
   }
@@ -158,18 +158,18 @@ class DirectiveStore {
         history[conversationId] = [];
       }
       history[conversationId].push(directives[conversationId]);
-      
+
       // Keep only last 10 history items per conversation
       if (history[conversationId].length > 10) {
         history[conversationId] = history[conversationId].slice(-10);
       }
-      
+
       await this.saveHistory(history);
     }
 
     directives[conversationId] = directive;
     await this.saveDirectives(directives);
-    
+
     return directive;
   }
 
@@ -190,7 +190,7 @@ class DirectiveStore {
    */
   async deleteDirective(conversationId) {
     const directives = await this.loadDirectives();
-    
+
     if (!directives[conversationId]) {
       return false;
     }
