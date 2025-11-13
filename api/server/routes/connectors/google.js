@@ -1,178 +1,116 @@
 const express = require('express');
-const router = express.Router();
-const { OAuth2Client } = require('google-auth-library');
-const { requireJwtAuth } = require('../../middleware');
+
 const { logger } = require('@librechat/data-schemas');
 
-// In-memory token store (in production, use Redis or database)
-const tokenStore = new Map();
+const router = express.Router();
 
 /**
- * Get OAuth2 client
- */
-function getOAuth2Client() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI || `${process.env.DOMAIN_SERVER}/api/connectors/google/callback`;
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Google OAuth not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.');
-  }
-
-  return new OAuth2Client(clientId, clientSecret, redirectUri);
-}
-
-/**
- * Check if Google OAuth is configured
- */
-function isConfigured() {
-  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-}
-
-/**
- * Initiate Google OAuth flow
  * GET /api/connectors/google/login
+ * Initiates Google OAuth2 flow for connectors.
+ * 
+ * TODO: Implement full Google OAuth2 flow
+ * - Generate state parameter for CSRF protection
+ * - Store state in session
+ * - Redirect to Google OAuth consent screen
+ * - Request appropriate scopes (e.g., profile, email, cloud services)
+ * 
+ * Required environment variables:
+ * - GOOGLE_CLIENT_ID
+ * - GOOGLE_CLIENT_SECRET
+ * - GOOGLE_OAUTH_REDIRECT_URI
  */
-router.get('/login', requireJwtAuth, (req, res) => {
-  try {
-    if (!isConfigured()) {
-      return res.status(501).json({
-        error: 'Google OAuth is not configured',
-        message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
-      });
-    }
+router.get('/login', (req, res) => {
+  const { GOOGLE_CLIENT_ID, GOOGLE_OAUTH_REDIRECT_URI } = process.env;
 
-    const oauth2Client = getOAuth2Client();
-    
-    // Generate state parameter for CSRF protection
-    const state = Buffer.from(JSON.stringify({
-      userId: req.user.id,
-      timestamp: Date.now(),
-    })).toString('base64');
-
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-        'https://www.googleapis.com/auth/cloud-platform', // For Google Cloud APIs
-      ],
-      state: state,
-      prompt: 'consent',
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_OAUTH_REDIRECT_URI) {
+    return res.status(501).json({
+      error: 'Google OAuth not configured',
+      message:
+        'Please set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_OAUTH_REDIRECT_URI environment variables.',
+      documentation: 'https://developers.google.com/identity/protocols/oauth2',
     });
-
-    res.json({ authUrl, state });
-  } catch (error) {
-    logger.error('[GoogleOAuth] Error initiating OAuth flow:', error);
-    res.status(500).json({ error: 'Failed to initiate OAuth flow', message: error.message });
   }
+
+  // TODO: Generate and store state parameter
+  // TODO: Build OAuth URL with proper scopes
+  // TODO: Redirect to Google OAuth consent screen
+
+  logger.warn('[Google OAuth] Login endpoint not fully implemented');
+  res.status(501).json({
+    error: 'Not implemented',
+    message: 'Google OAuth flow is scaffolded but not fully implemented. See TODO comments in code.',
+  });
 });
 
 /**
- * Handle OAuth callback
  * GET /api/connectors/google/callback
+ * Handles OAuth2 callback from Google.
+ * 
+ * TODO: Implement callback handler
+ * - Verify state parameter
+ * - Exchange authorization code for tokens
+ * - Store tokens securely (in-memory session-scoped by default)
+ * - Post message back to opener window
+ * 
+ * Query parameters:
+ * - code: Authorization code from Google
+ * - state: CSRF protection token
  */
 router.get('/callback', async (req, res) => {
-  try {
-    const { code, state } = req.query;
+  const { code, state } = req.query;
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env;
 
-    if (!code) {
-      return res.status(400).send('Authorization code not provided');
-    }
-
-    const oauth2Client = getOAuth2Client();
-    
-    // Exchange code for tokens
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    // Decode state to get user ID
-    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-    const userId = stateData.userId;
-
-    // Store tokens (in production, use secure storage)
-    tokenStore.set(userId, {
-      tokens,
-      timestamp: Date.now(),
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    return res.status(501).json({
+      error: 'Google OAuth not configured',
+      message: 'Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
     });
-
-    logger.info(`[GoogleOAuth] Successfully connected Google account for user ${userId}`);
-
-    // Send postMessage to opener window and close popup
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener.postMessage({ type: 'google-oauth-success', connected: true }, '*');
-            window.close();
-          </script>
-          <p>Authentication successful! You can close this window.</p>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    logger.error('[GoogleOAuth] Error in OAuth callback:', error);
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener.postMessage({ type: 'google-oauth-error', error: '${error.message}' }, '*');
-            window.close();
-          </script>
-          <p>Authentication failed. Please try again.</p>
-        </body>
-      </html>
-    `);
   }
+
+  if (!code) {
+    return res.status(400).json({
+      error: 'Missing authorization code',
+      message: 'No authorization code received from Google.',
+    });
+  }
+
+  // TODO: Verify state parameter
+  // TODO: Exchange code for tokens using googleapis library
+  // TODO: Store tokens in session-scoped in-memory store
+  // TODO: Return HTML that posts message to opener window
+
+  logger.warn('[Google OAuth] Callback endpoint not fully implemented');
+  res.status(501).json({
+    error: 'Not implemented',
+    message: 'Google OAuth callback is scaffolded but not fully implemented. See TODO comments in code.',
+  });
 });
 
 /**
- * Get connector status
- * GET /api/connectors/google/status
+ * POST /api/connectors/google/upload-service-account
+ * Handles Google Cloud service account JSON upload.
+ * 
+ * TODO: Implement service account upload
+ * - Accept multipart/form-data with JSON file
+ * - Validate service account JSON structure
+ * - Store securely (encrypted file or environment)
+ * - Return success/error response
+ * 
+ * Required for: Google Cloud STT/TTS services
  */
-router.get('/status', requireJwtAuth, (req, res) => {
-  try {
-    const userId = req.user.id;
-    const connection = tokenStore.get(userId);
-    
-    res.json({
-      connected: !!connection,
-      timestamp: connection?.timestamp,
-      configured: isConfigured(),
-    });
-  } catch (error) {
-    logger.error('[GoogleOAuth] Error checking status:', error);
-    res.status(500).json({ error: 'Failed to check status' });
-  }
-});
+router.post('/upload-service-account', (req, res) => {
+  // TODO: Implement service account upload handler
+  // Use multer for file upload
+  // Validate JSON structure
+  // Store securely
 
-/**
- * Disconnect Google account
- * POST /api/connectors/google/disconnect
- */
-router.post('/disconnect', requireJwtAuth, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const connection = tokenStore.get(userId);
+  logger.warn('[Google Cloud] Service account upload not implemented');
+  res.status(501).json({
+    error: 'Not implemented',
+    message:
+      'Service account upload is scaffolded but not fully implemented. Use GOOGLE_APPLICATION_CREDENTIALS environment variable instead.',
+  });
 
-    if (connection) {
-      // Revoke tokens
-      try {
-        const oauth2Client = getOAuth2Client();
-        oauth2Client.setCredentials(connection.tokens);
-        await oauth2Client.revokeCredentials();
-      } catch (error) {
-        logger.warn('[GoogleOAuth] Error revoking tokens:', error);
-      }
-
-      tokenStore.delete(userId);
-    }
-
-    res.json({ success: true, connected: false });
-  } catch (error) {
-    logger.error('[GoogleOAuth] Error disconnecting:', error);
-    res.status(500).json({ error: 'Failed to disconnect' });
-  }
 });
 
 module.exports = router;
