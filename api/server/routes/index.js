@@ -7,6 +7,7 @@ const staticRoute = require('./static');
 const messages = require('./messages');
 const memories = require('./memories');
 const directives = require('./directives');
+const connectors = require('./connectors');
 const presets = require('./presets');
 const prompts = require('./prompts');
 const balance = require('./balance');
@@ -54,6 +55,7 @@ module.exports = {
   messages,
   memories,
   directives,
+  connectors,
   endpoints,
   tokenizer,
   assistants,
