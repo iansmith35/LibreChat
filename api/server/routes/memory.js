@@ -1,67 +1,105 @@
 const express = require('express');
+
+const { requireJwtAuth } = require('~/server/middleware');
+const { memoryStore } = require('~/server/memory/store');
+
 const router = express.Router();
-const memoryStore = require('../memory/store');
-const { requireJwtAuth } = require('../middleware');
-const { logger } = require('@librechat/data-schemas');
 
 /**
- * Get memory for a conversation
  * GET /api/memory/:conversationId
+ * Get all memory items for a conversation
+
  */
 router.get('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const memory = await memoryStore.read(conversationId);
-    res.json(memory);
+
+    const items = await memoryStore.getMemoryItems(conversationId);
+    res.json(items);
   } catch (error) {
-    logger.error('[Memory API] Error getting memory:', error);
-    res.status(500).json({ error: 'Failed to retrieve memory' });
+    console.error('[Memory API] Error getting memory items:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
 /**
- * Save memory for a conversation
  * POST /api/memory/:conversationId
- * Body: { facts: [], metadata: {} }
+ * Add a memory item to a conversation
+
  */
 router.post('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
-    const memoryData = req.body;
-    const savedMemory = await memoryStore.write(conversationId, memoryData);
-    res.json(savedMemory);
+
+    const { content } = req.body;
+
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ message: 'content is required and must be a string' });
+    }
+
+    const memoryItem = await memoryStore.addMemoryItem(conversationId, content);
+    res.json(memoryItem);
   } catch (error) {
-    logger.error('[Memory API] Error saving memory:', error);
-    res.status(500).json({ error: 'Failed to save memory' });
+    console.error('[Memory API] Error adding memory item:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
 /**
- * Delete memory for a conversation
+ * PATCH /api/memory/:conversationId/:itemId
+ * Update a memory item
+ */
+router.patch('/:conversationId/:itemId', requireJwtAuth, async (req, res) => {
+  try {
+    const { conversationId, itemId } = req.params;
+    const updates = req.body;
+
+    const updatedItem = await memoryStore.updateMemoryItem(conversationId, itemId, updates);
+
+    if (!updatedItem) {
+      return res.status(404).json({ message: 'Memory item not found' });
+    }
+
+    res.json(updatedItem);
+  } catch (error) {
+    console.error('[Memory API] Error updating memory item:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/memory/:conversationId/:itemId
+ * Delete a memory item
+ */
+router.delete('/:conversationId/:itemId', requireJwtAuth, async (req, res) => {
+  try {
+    const { conversationId, itemId } = req.params;
+    const deleted = await memoryStore.deleteMemoryItem(conversationId, itemId);
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Memory item not found' });
+    }
+
+    res.json({ message: 'Memory item deleted successfully' });
+  } catch (error) {
+    console.error('[Memory API] Error deleting memory item:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+/**
  * DELETE /api/memory/:conversationId
+ * Clear all memory for a conversation
  */
 router.delete('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
-    await memoryStore.delete(conversationId);
-    res.json({ success: true });
+    await memoryStore.clearConversationMemory(conversationId);
+    res.json({ message: 'Memory cleared successfully' });
   } catch (error) {
-    logger.error('[Memory API] Error deleting memory:', error);
-    res.status(500).json({ error: 'Failed to delete memory' });
-  }
-});
+    console.error('[Memory API] Error clearing memory:', error);
+    res.status(500).json({ message: 'Internal server error' });
 
-/**
- * List all conversations with memories
- * GET /api/memory
- */
-router.get('/', requireJwtAuth, async (req, res) => {
-  try {
-    const conversationIds = await memoryStore.list();
-    res.json({ conversationIds });
-  } catch (error) {
-    logger.error('[Memory API] Error listing memories:', error);
-    res.status(500).json({ error: 'Failed to list memories' });
   }
 });
 

@@ -1,52 +1,179 @@
-import { useState, useEffect } from 'react';
-import { useRecoilValue } from 'recoil';
-import store from '~/store';
 
-export interface Memory {
+import { useState, useEffect, useCallback } from 'react';
+
+interface MemoryItem {
+  id: string;
   conversationId: string;
-  facts: string[];
-  createdAt: string;
-  updatedAt: string;
-  metadata?: Record<string, unknown>;
+  content: string;
+  timestamp: number;
+  enabled: boolean;
 }
 
-export interface UseMemoryReturn {
-  memory: Memory | null;
+interface UseMemoryResult {
+  memories: MemoryItem[];
   loading: boolean;
   error: string | null;
-  saveMemory: (facts: string[]) => Promise<void>;
-  clearMemory: () => Promise<void>;
-  refreshMemory: () => Promise<void>;
+  addMemory: (content: string) => Promise<void>;
+  updateMemory: (itemId: string, updates: Partial<MemoryItem>) => Promise<void>;
+  deleteMemory: (itemId: string) => Promise<void>;
+  clearMemories: () => Promise<void>;
+  refreshMemories: () => Promise<void>;
 }
 
-/**
- * Hook to manage persistent memory for a conversation
- */
-export default function useMemory(conversationId?: string): UseMemoryReturn {
-  const [memory, setMemory] = useState<Memory | null>(null);
+export const useMemory = (conversationId: string): UseMemoryResult => {
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const currentConversationId = useRecoilValue(store.conversation)?.conversationId;
-  
-  const activeConversationId = conversationId || currentConversationId;
 
-  const fetchMemory = async () => {
-    if (!activeConversationId) {
-      return;
-    }
+  const getAuthToken = useCallback(() => {
+    return localStorage.getItem('token') || '';
+  }, []);
+
+  const refreshMemories = useCallback(async () => {
+    if (!conversationId) return;
+
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/memory/${activeConversationId}`, {
-        method: 'GET',
+
+      const response = await fetch(`/api/memory/${conversationId}`, {
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`,
+
         },
       });
 
       if (!response.ok) {
+
+        throw new Error('Failed to fetch memories');
+      }
+
+      const data = await response.json();
+      setMemories(data);
+    } catch (err) {
+      console.error('Error fetching memories:', err);
+      setError('Failed to load memories');
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, getAuthToken]);
+
+  useEffect(() => {
+    refreshMemories();
+  }, [refreshMemories]);
+
+  const addMemory = useCallback(
+    async (content: string) => {
+      if (!conversationId || !content.trim()) {
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/memory/${conversationId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAuthToken()}`,
+          },
+          body: JSON.stringify({ content }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to add memory');
+        }
+
+        const newMemory = await response.json();
+        setMemories((prev) => [...prev, newMemory]);
+      } catch (err) {
+        console.error('Error adding memory:', err);
+        setError('Failed to add memory');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [conversationId, getAuthToken],
+  );
+
+  const updateMemory = useCallback(
+    async (itemId: string, updates: Partial<MemoryItem>) => {
+      if (!conversationId || !itemId) {
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/memory/${conversationId}/${itemId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getAuthToken()}`,
+          },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update memory');
+        }
+
+        const updatedMemory = await response.json();
+        setMemories((prev) =>
+          prev.map((mem) => (mem.id === itemId ? updatedMemory : mem)),
+        );
+      } catch (err) {
+        console.error('Error updating memory:', err);
+        setError('Failed to update memory');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [conversationId, getAuthToken],
+  );
+
+  const deleteMemory = useCallback(
+    async (itemId: string) => {
+      if (!conversationId || !itemId) {
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/memory/${conversationId}/${itemId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete memory');
+        }
+
+        setMemories((prev) => prev.filter((mem) => mem.id !== itemId));
+      } catch (err) {
+        console.error('Error deleting memory:', err);
+        setError('Failed to delete memory');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [conversationId, getAuthToken],
+  );
+
+  const clearMemories = useCallback(async () => {
+    if (!conversationId) {
+
         throw new Error('Failed to fetch memory');
       }
 
@@ -96,6 +223,7 @@ export default function useMemory(conversationId?: string): UseMemoryReturn {
 
   const clearMemory = async () => {
     if (!activeConversationId) {
+
       return;
     }
 
@@ -103,45 +231,40 @@ export default function useMemory(conversationId?: string): UseMemoryReturn {
     setError(null);
 
     try {
-      const response = await fetch(`/api/memory/${activeConversationId}`, {
+
+      const response = await fetch(`/api/memory/${conversationId}`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`,
+
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to clear memory');
+
+        throw new Error('Failed to clear memories');
       }
 
-      setMemory(null);
+      setMemories([]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      console.error('Error clearing memory:', err);
+      console.error('Error clearing memories:', err);
+      setError('Failed to clear memories');
+      throw err;
     } finally {
       setLoading(false);
     }
-  };
-
-  const refreshMemory = async () => {
-    await fetchMemory();
-  };
-
-  // Fetch memory when conversation changes
-  useEffect(() => {
-    if (activeConversationId) {
-      fetchMemory();
-    } else {
-      setMemory(null);
-    }
-  }, [activeConversationId]);
+  }, [conversationId, getAuthToken]);
 
   return {
-    memory,
+    memories,
     loading,
     error,
-    saveMemory,
-    clearMemory,
-    refreshMemory,
+    addMemory,
+    updateMemory,
+    deleteMemory,
+    clearMemories,
+    refreshMemories,
   };
-}
+};
+
+export default useMemory;

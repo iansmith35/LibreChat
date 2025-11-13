@@ -1,132 +1,210 @@
-const { logger } = require('@librechat/data-schemas');
 
-let speech = null;
-let textToSpeech = null;
+const express = require('express');
+const multer = require('multer');
+const { requireJwtAuth } = require('~/server/middleware');
+
+const router = express.Router();
+
+// Configure multer for audio uploads (10MB limit)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept audio files
+    if (file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only audio files are allowed'));
+    }
+  },
+});
+
+// Default voice mapping: 'Vale' -> en-GB-Wavenet-F
+const DEFAULT_VOICE_NAME = 'Vale';
+const DEFAULT_VOICE_CONFIG = {
+  languageCode: 'en-GB',
+  name: 'en-GB-Wavenet-F',
+  ssmlGender: 'FEMALE',
+};
+
+// Get voice configuration from env or use default
+function getVoiceConfig() {
+  const envVoice = process.env.TTS_DEFAULT_VOICE;
+  if (envVoice) {
+    // Parse format: languageCode:name:ssmlGender (e.g., "en-US:en-US-Wavenet-A:MALE")
+    const parts = envVoice.split(':');
+    if (parts.length === 3) {
+      return {
+        languageCode: parts[0],
+        name: parts[1],
+        ssmlGender: parts[2],
+      };
+    }
+  }
+  return DEFAULT_VOICE_CONFIG;
+}
 
 /**
- * Initialize Google Cloud Speech clients
+ * Initialize Google Cloud clients
  */
-function initializeClients() {
-  if (speech && textToSpeech) {
-    return { speech, textToSpeech };
+function initializeGoogleCloudClients() {
+  const hasCredentials = process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_KEY;
+
+  if (!hasCredentials) {
+    return { enabled: false, message: 'Google Cloud credentials not configured' };
   }
 
   try {
-    // Try to load Google Cloud libraries
-    const SpeechClient = require('@google-cloud/speech').SpeechClient;
-    const TextToSpeechClient = require('@google-cloud/text-to-speech').TextToSpeechClient;
+    // Lazy-load the Google Cloud libraries
+    const speech = require('@google-cloud/speech');
+    const textToSpeech = require('@google-cloud/text-to-speech');
 
-    // Initialize with credentials from environment
-    const config = {};
-    
+    let clientConfig = {};
+
+    // If GOOGLE_CLOUD_KEY is provided (JSON string), use it
     if (process.env.GOOGLE_CLOUD_KEY) {
-      // If GOOGLE_CLOUD_KEY is provided as a JSON string
       try {
-        config.credentials = JSON.parse(process.env.GOOGLE_CLOUD_KEY);
+        const credentials = JSON.parse(process.env.GOOGLE_CLOUD_KEY);
+        clientConfig = { credentials };
       } catch (error) {
-        logger.warn('[GoogleCloud] GOOGLE_CLOUD_KEY is not valid JSON, falling back to GOOGLE_APPLICATION_CREDENTIALS');
+        console.error('[GoogleCloud] Error parsing GOOGLE_CLOUD_KEY:', error);
+        return { enabled: false, message: 'Invalid GOOGLE_CLOUD_KEY format' };
       }
     }
-    // Otherwise will use GOOGLE_APPLICATION_CREDENTIALS env var automatically
+    // Otherwise, rely on GOOGLE_APPLICATION_CREDENTIALS env var
 
-    speech = new SpeechClient(config);
-    textToSpeech = new TextToSpeechClient(config);
-    
-    logger.info('[GoogleCloud] Successfully initialized Google Cloud Speech clients');
-    return { speech, textToSpeech };
+    const speechClient = new speech.SpeechClient(clientConfig);
+    const ttsClient = new textToSpeech.TextToSpeechClient(clientConfig);
+
+    return {
+      enabled: true,
+      speechClient,
+      ttsClient,
+    };
   } catch (error) {
-    logger.error('[GoogleCloud] Error initializing Google Cloud clients:', error);
-    return { speech: null, textToSpeech: null };
+    console.error('[GoogleCloud] Error initializing clients:', error);
+    return { enabled: false, message: 'Failed to initialize Google Cloud clients', error };
   }
 }
 
-/**
- * Check if Google Cloud is configured
- */
-function isConfigured() {
-  return !!(process.env.GOOGLE_CLOUD_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS);
-}
+// Initialize clients once
+const googleCloudClients = initializeGoogleCloudClients();
 
 /**
- * Transcribe audio using Google Cloud Speech-to-Text
- * @param {Buffer} audioBuffer - Audio data buffer
- * @param {Object} options - Transcription options
- * @returns {Promise<string>} Transcript text
+ * POST /api/speech/stt
+ * Speech-to-Text endpoint
  */
-async function transcribeAudio(audioBuffer, options = {}) {
-  const { speech } = initializeClients();
-  
-  if (!speech) {
-    throw new Error('Google Cloud Speech-to-Text is not configured. Please set GOOGLE_CLOUD_KEY or GOOGLE_APPLICATION_CREDENTIALS environment variable.');
+router.post('/stt', requireJwtAuth, upload.single('audio'), async (req, res) => {
+  if (!googleCloudClients.enabled) {
+    return res.status(501).json({
+      message: 'Speech-to-Text service not available',
+      instructions: 'Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_KEY environment variable',
+      details: googleCloudClients.message,
+    });
   }
 
   try {
-    const audio = {
-      content: audioBuffer.toString('base64'),
-    };
+    if (!req.file) {
+      return res.status(400).json({ message: 'Audio file is required' });
+    }
 
-    const config = {
-      encoding: options.encoding || 'WEBM_OPUS',
-      sampleRateHertz: options.sampleRateHertz || 48000,
-      languageCode: options.languageCode || 'en-US',
-      enableAutomaticPunctuation: true,
-    };
+    const audioBytes = req.file.buffer.toString('base64');
+    const languageCode = req.body.languageCode || 'en-US';
 
     const request = {
-      audio: audio,
-      config: config,
+      audio: {
+        content: audioBytes,
+      },
+      config: {
+        encoding: 'WEBM_OPUS', // Default, can be overridden
+        sampleRateHertz: 48000,
+        languageCode: languageCode,
+        enableAutomaticPunctuation: true,
+      },
     };
 
-    const [response] = await speech.recognize(request);
+    const [response] = await googleCloudClients.speechClient.recognize(request);
+
     const transcription = response.results
       .map((result) => result.alternatives[0].transcript)
       .join('\n');
 
-    return transcription;
+
+    res.json({
+      transcript: transcription,
+      confidence: response.results[0]?.alternatives[0]?.confidence || 0,
+    });
   } catch (error) {
-    logger.error('[GoogleCloud] Error transcribing audio:', error);
-    throw error;
+    console.error('[GoogleCloud STT] Error:', error);
+    res.status(500).json({ message: 'Speech-to-Text failed', error: error.message });
   }
-}
+});
 
 /**
- * Synthesize speech from text using Google Cloud Text-to-Speech
- * @param {string} text - Text to synthesize
- * @param {Object} options - Synthesis options
- * @returns {Promise<Buffer>} Audio data buffer
+ * POST /api/speech/tts
+ * Text-to-Speech endpoint
  */
-async function synthesizeSpeech(text, options = {}) {
-  const { textToSpeech } = initializeClients();
-  
-  if (!textToSpeech) {
-    throw new Error('Google Cloud Text-to-Speech is not configured. Please set GOOGLE_CLOUD_KEY or GOOGLE_APPLICATION_CREDENTIALS environment variable.');
+router.post('/tts', requireJwtAuth, async (req, res) => {
+  if (!googleCloudClients.enabled) {
+    return res.status(501).json({
+      message: 'Text-to-Speech service not available',
+      instructions: 'Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_KEY environment variable',
+      details: googleCloudClients.message,
+    });
   }
 
   try {
+    const { text, voiceName } = req.body;
+
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ message: 'text is required and must be a string' });
+    }
+
+    // Use default voice config or custom voice
+    let voiceConfig = getVoiceConfig();
+
+    // If voiceName is 'Vale' or not provided, use default
+    if (!voiceName || voiceName === DEFAULT_VOICE_NAME) {
+      voiceConfig = getVoiceConfig();
+    }
+
     const request = {
       input: { text: text },
-      voice: {
-        languageCode: options.languageCode || 'en-US',
-        name: options.voiceName || 'en-US-Neural2-C',
-        ssmlGender: options.ssmlGender || 'NEUTRAL',
-      },
-      audioConfig: {
-        audioEncoding: options.audioEncoding || 'MP3',
-        speakingRate: options.speakingRate || 1.0,
-        pitch: options.pitch || 0.0,
-      },
+      voice: voiceConfig,
+      audioConfig: { audioEncoding: 'MP3' },
     };
 
-    const [response] = await textToSpeech.synthesizeSpeech(request);
-    return response.audioContent;
-  } catch (error) {
-    logger.error('[GoogleCloud] Error synthesizing speech:', error);
-    throw error;
-  }
-}
+    const [response] = await googleCloudClients.ttsClient.synthesizeSpeech(request);
 
-module.exports = {
-  isConfigured,
-  transcribeAudio,
-  synthesizeSpeech,
-};
+    // Return audio as base64
+    const audioContent = response.audioContent.toString('base64');
+
+    res.json({
+      audio: audioContent,
+      format: 'mp3',
+      voiceName: voiceConfig.name,
+    });
+  } catch (error) {
+    console.error('[GoogleCloud TTS] Error:', error);
+    res.status(500).json({ message: 'Text-to-Speech failed', error: error.message });
+  }
+});
+
+/**
+ * GET /api/speech/status
+ * Check if speech services are available
+ */
+router.get('/status', requireJwtAuth, async (req, res) => {
+  res.json({
+    enabled: googleCloudClients.enabled,
+    message: googleCloudClients.message || 'Speech services are available',
+    defaultVoice: {
+      name: DEFAULT_VOICE_NAME,
+      config: getVoiceConfig(),
+    },
+  });
+});
+
+module.exports = router;
