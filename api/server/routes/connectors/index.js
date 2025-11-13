@@ -1,4 +1,5 @@
 const express = require('express');
+
 const { requireJwtAuth } = require('~/server/middleware');
 const { getConnectedServices } = require('~/server/services/Connectors');
 const googleOAuth = require('./googleOAuth');
@@ -40,5 +41,14 @@ router.use('/google-cloud', googleCloud);
  * @route /connectors/rube/*
  */
 router.use('/rube', rube);
+=======
+const router = express.Router();
+const googleRouter = require('./google');
+const rubeRouter = require('./rube');
+
+// Mount connector routes
+router.use('/google', googleRouter);
+router.use('/rube', rubeRouter);
+
 
 module.exports = router;

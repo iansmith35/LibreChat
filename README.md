@@ -326,3 +326,191 @@ We thank [Locize](https://locize.com) for their translation management tools tha
     <img src="https://github.com/user-attachments/assets/d6b70894-6064-475e-bb65-92a9e23e0077" alt="Locize Logo" height="50">
   </a>
 </p>
+
+---
+
+## 🎙️ Speech-to-Speech and External Connectors
+
+LibreChat now supports speech-to-speech capabilities and external service connectors for enhanced functionality.
+
+### Speech-to-Speech
+
+Enable natural voice conversations with your AI assistant using Google Cloud Speech APIs or compatible alternatives.
+
+**Features:**
+- 🎤 **Speech-to-Text**: Record audio directly in the UI and have it transcribed to text
+- 🔊 **Text-to-Speech**: Get audio responses from the AI agent
+- 🌐 **Google Cloud Integration**: Uses Google Cloud Speech-to-Text and Text-to-Speech APIs
+- 🔄 **Fallback Support**: Works with open-source alternatives when Google Cloud is not configured
+
+**Configuration:**
+
+To enable speech-to-speech, you need to configure Google Cloud credentials:
+
+**Option 1: Service Account Key File** (recommended for local development)
+```bash
+# Set the path to your service account JSON key file
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/your-service-account-key.json
+```
+
+**Option 2: JSON Key as Environment Variable** (recommended for Docker/cloud)
+```bash
+# Set the entire JSON key as an environment variable
+GOOGLE_CLOUD_KEY='{"type":"service_account","project_id":"your-project",...}'
+```
+
+**Getting Google Cloud Credentials:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Cloud Speech-to-Text API and Cloud Text-to-Speech API
+4. Go to IAM & Admin → Service Accounts
+5. Create a service account with the following roles:
+   - Cloud Speech-to-Text User
+   - Cloud Text-to-Speech User
+6. Create and download a JSON key for the service account
+7. Add the key to your environment as shown above
+
+### External Connectors
+
+Connect external services to extend LibreChat's capabilities with tools and integrations.
+
+**Supported Connectors:**
+- 🔗 **Google OAuth**: Connect your Google account for cloud services
+- 🔌 **Rube.app**: Integration with Rube.app services
+- ⚙️ **Generic Connectors**: Add custom connectors with API keys
+
+**Configuration:**
+
+#### Google OAuth Connector
+
+```bash
+# Obtain from https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3080/api/connectors/google/callback
+```
+
+**Setting up Google OAuth:**
+1. Go to [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials)
+2. Create OAuth 2.0 Client ID
+3. Set application type to "Web application"
+4. Add authorized redirect URIs:
+   - `http://localhost:3080/api/connectors/google/callback` (for local development)
+   - Your production URL + `/api/connectors/google/callback` (for production)
+5. Copy the Client ID and Client Secret to your `.env` file
+
+#### Rube.app Connector
+
+```bash
+RUBE_CLIENT_ID=your-rube-client-id
+RUBE_CLIENT_SECRET=your-rube-client-secret
+RUBE_OAUTH_URL=https://rube.app/oauth/authorize
+RUBE_REDIRECT_URI=http://localhost:3080/api/connectors/rube/callback
+```
+
+### Agent Directives
+
+Configure agent behavior, personality, and memory settings per conversation.
+
+**Features:**
+- 📝 **System Prompts**: Set custom system-level instructions
+- 🎭 **Personality**: Define communication style and tone
+- 📋 **Directives**: Add specific behavioral instructions
+- �� **Memory Policy**: Control how the agent uses persistent memory
+
+**Usage:**
+
+Directives are managed through the UI's side panel. You can:
+1. Open the Connectors panel from settings
+2. Set system prompts and personality traits
+3. Add or remove specific directives
+4. Configure memory retention policy (automatic, manual, or off)
+
+### Persistent Memory
+
+Store and retrieve conversation context across sessions for better continuity.
+
+**Features:**
+- 💾 **File-based Storage**: Memories stored securely in `data/memory/`
+- 🔐 **Per-conversation**: Each conversation has its own memory store
+- 📊 **Memory Management**: View, edit, and clear memory through the UI
+- 🔄 **Auto-sync**: Automatically updated based on directive settings
+
+**Storage Location:**
+```
+data/
+├── memory/         # Conversation memories (JSON)
+└── directives/     # Agent directives (JSON)
+```
+
+**Note:** The `data/` directory is gitignored by default to protect sensitive information.
+
+### Security Notes
+
+⚠️ **Important Security Considerations:**
+
+- Never commit service account keys or OAuth credentials to version control
+- Use environment variables for all sensitive configuration
+- Tokens are stored in memory by default (use Redis or database for production)
+- The `data/` directory contains sensitive conversation data and should be secured
+- Regularly rotate API keys and service account credentials
+- Use HTTPS in production to protect OAuth flows
+
+### API Endpoints
+
+The following new API endpoints are available:
+
+**Speech APIs:**
+- `POST /api/speech/stt` - Speech-to-text transcription
+- `POST /api/speech/tts` - Text-to-speech synthesis
+- `GET /api/speech/status` - Check service configuration status
+
+**Connector APIs:**
+- `GET /api/connectors/google/login` - Initiate Google OAuth
+- `GET /api/connectors/google/callback` - OAuth callback handler
+- `GET /api/connectors/google/status` - Check connection status
+- `POST /api/connectors/google/disconnect` - Disconnect Google account
+- Similar endpoints for `/api/connectors/rube/*`
+
+**Memory APIs:**
+- `GET /api/memory/:conversationId` - Retrieve conversation memory
+- `POST /api/memory/:conversationId` - Save conversation memory
+- `DELETE /api/memory/:conversationId` - Clear conversation memory
+
+**Directive APIs:**
+- `GET /api/agent/directive/:conversationId` - Get agent directive
+- `POST /api/agent/directive/:conversationId` - Save agent directive
+- `DELETE /api/agent/directive/:conversationId` - Delete agent directive
+
+### Testing
+
+To test the new features locally:
+
+1. **Configure environment variables** in `.env` file
+2. **Start the server**: `npm run backend:dev`
+3. **Start the client**: `npm run frontend:dev`
+4. **Test speech-to-speech**: Click the microphone icon in chat input
+5. **Test connectors**: Open settings → Connectors panel
+6. **Test directives**: Open the directive window from the side panel
+
+### Troubleshooting
+
+**Speech-to-speech not working:**
+- Verify Google Cloud credentials are configured correctly
+- Check that Speech APIs are enabled in your Google Cloud project
+- Ensure service account has proper permissions
+- Check browser console for error messages
+
+**Connectors not connecting:**
+- Verify OAuth credentials in environment variables
+- Check redirect URIs match exactly (including protocol and port)
+- Ensure cookies are enabled in browser
+- Check that popup blockers are not preventing OAuth flow
+
+**Memory not persisting:**
+- Verify `data/memory/` directory exists and is writable
+- Check server logs for file system errors
+- Ensure conversation ID is valid
+
+For more information and updates, visit [LibreChat Documentation](https://docs.librechat.ai).
+
