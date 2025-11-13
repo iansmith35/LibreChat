@@ -32,6 +32,8 @@ const memory = require('./memory');
 const connectors = require('./connectors');
 const speech = require('./speech');
 
+const connectors = require('./connectors');
+
 module.exports = {
   mcp,
   edit,
@@ -62,8 +64,10 @@ module.exports = {
   categories,
   staticRoute,
   accessPermissions,
+
   directive,
   memory,
   connectors,
   speech,
+
 };

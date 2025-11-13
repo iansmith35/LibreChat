@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
@@ -87,11 +88,13 @@ class FileBackedMemoryStore {
         console.error('[MemoryStore] Error cleaning up temp file:', cleanupError);
       }
 
+
       throw error;
     }
   }
 
   /**
+
    * Get memory items for a conversation
    * @param {string} conversationId
    * @returns {Promise<MemoryItem[]>}
@@ -220,3 +223,4 @@ const memoryStore = new FileBackedMemoryStore();
 module.exports = FileBackedMemoryStore;
 module.exports.memoryStore = memoryStore;
 module.exports.default = FileBackedMemoryStore;
+

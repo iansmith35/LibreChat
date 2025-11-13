@@ -1,4 +1,5 @@
 const express = require('express');
+
 const { requireJwtAuth } = require('~/server/middleware');
 const { memoryStore } = require('~/server/memory/store');
 
@@ -7,10 +8,12 @@ const router = express.Router();
 /**
  * GET /api/memory/:conversationId
  * Get all memory items for a conversation
+
  */
 router.get('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
+
     const items = await memoryStore.getMemoryItems(conversationId);
     res.json(items);
   } catch (error) {
@@ -22,10 +25,12 @@ router.get('/:conversationId', requireJwtAuth, async (req, res) => {
 /**
  * POST /api/memory/:conversationId
  * Add a memory item to a conversation
+
  */
 router.post('/:conversationId', requireJwtAuth, async (req, res) => {
   try {
     const { conversationId } = req.params;
+
     const { content } = req.body;
 
     if (!content || typeof content !== 'string') {
@@ -94,6 +99,7 @@ router.delete('/:conversationId', requireJwtAuth, async (req, res) => {
   } catch (error) {
     console.error('[Memory API] Error clearing memory:', error);
     res.status(500).json({ message: 'Internal server error' });
+
   }
 });
 

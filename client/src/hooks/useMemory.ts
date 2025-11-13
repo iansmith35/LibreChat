@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 
 interface MemoryItem {
@@ -31,17 +32,21 @@ export const useMemory = (conversationId: string): UseMemoryResult => {
   const refreshMemories = useCallback(async () => {
     if (!conversationId) return;
 
+
     setLoading(true);
     setError(null);
 
     try {
+
       const response = await fetch(`/api/memory/${conversationId}`, {
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`,
+
         },
       });
 
       if (!response.ok) {
+
         throw new Error('Failed to fetch memories');
       }
 
@@ -168,6 +173,22 @@ export const useMemory = (conversationId: string): UseMemoryResult => {
 
   const clearMemories = useCallback(async () => {
     if (!conversationId) {
+
+        throw new Error('Failed to fetch memory');
+      }
+
+      const data = await response.json();
+      setMemory(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Error fetching memory:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveMemory = async (facts: string[]) => {
+    if (!activeConversationId) {
       return;
     }
 
@@ -175,14 +196,52 @@ export const useMemory = (conversationId: string): UseMemoryResult => {
     setError(null);
 
     try {
+      const response = await fetch(`/api/memory/${activeConversationId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          facts,
+          metadata: memory?.metadata || {},
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save memory');
+      }
+
+      const data = await response.json();
+      setMemory(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      console.error('Error saving memory:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearMemory = async () => {
+    if (!activeConversationId) {
+
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+
       const response = await fetch(`/api/memory/${conversationId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${getAuthToken()}`,
+
         },
       });
 
       if (!response.ok) {
+
         throw new Error('Failed to clear memories');
       }
 

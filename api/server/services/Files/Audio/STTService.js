@@ -6,6 +6,7 @@ const { logger } = require('@librechat/data-schemas');
 const { genAzureEndpoint } = require('@librechat/api');
 const { extractEnvVariable, STTProviders } = require('librechat-data-provider');
 const { getAppConfig } = require('~/server/services/Config');
+const { getGoogleCloudCredentials } = require('~/server/services/Connectors/GoogleCloud');
 
 /**
  * Maps MIME types to their corresponding file extensions for audio files.
@@ -88,6 +89,7 @@ class STTService {
     this.providerStrategies = {
       [STTProviders.OPENAI]: this.openAIProvider,
       [STTProviders.AZURE_OPENAI]: this.azureOpenAIProvider,
+      [STTProviders.GOOGLE_CLOUD]: this.googleCloudProvider,
     };
   }
 
@@ -236,6 +238,28 @@ class STTService {
   }
 
   /**
+   * Prepares the request for the Google Cloud STT provider.
+   * @param {Object} sttSchema - The STT schema for Google Cloud.
+   * @param {Stream} audioReadStream - The audio data to be transcribed.
+   * @param {Object} audioFile - The audio file object.
+   * @param {string} language - The language code for the transcription.
+   * @returns {Array} An array containing service account config, audio buffer, and language.
+   */
+  googleCloudProvider(sttSchema, audioReadStream, audioFile, language) {
+    // For Google Cloud, we need to use the SDK directly
+    // Return config that will be used in a custom handler
+    const serviceAccountKey = extractEnvVariable(sttSchema?.serviceAccountKey) || 
+                              process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+                              process.env.GOOGLE_CLOUD_KEY;
+    
+    if (!serviceAccountKey) {
+      throw new Error('Google Cloud credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_KEY.');
+    }
+
+    return [serviceAccountKey, audioReadStream, language || 'en-US'];
+  }
+
+  /**
    * Sends an STT request to the specified provider.
    * @async
    * @param {string} provider - The STT provider to use.
@@ -247,7 +271,7 @@ class STTService {
    * @returns {Promise<string>} A promise that resolves to the transcribed text.
    * @throws {Error} If the provider is invalid, the response status is not 200, or the response data is missing.
    */
-  async sttRequest(provider, sttSchema, { audioBuffer, audioFile, language }) {
+  async sttRequest(provider, sttSchema, { audioBuffer, audioFile, language }, req) {
     const strategy = this.providerStrategies[provider];
     if (!strategy) {
       throw new Error('Invalid provider');
@@ -266,6 +290,67 @@ class STTService {
       language,
     );
 
+    // Handle Google Cloud STT separately using the SDK
+    if (provider === STTProviders.GOOGLE_CLOUD) {
+      try {
+        const speech = require('@google-cloud/speech');
+        
+        // Get credentials from connector or env var
+        let credentials = null;
+        if (req?.user?.id) {
+          credentials = getGoogleCloudCredentials(req.user.id);
+        }
+        
+        // Fall back to environment variable
+        if (!credentials && url) {
+          try {
+            credentials = JSON.parse(url);
+          } catch {
+            // url might be a file path
+            credentials = url;
+          }
+        }
+        
+        if (!credentials) {
+          throw new Error('Google Cloud credentials not available. Please configure GOOGLE_APPLICATION_CREDENTIALS or upload a service account via connectors.');
+        }
+        
+        const clientOptions = typeof credentials === 'string' 
+          ? { keyFilename: credentials }
+          : { credentials };
+        
+        const client = new speech.SpeechClient(clientOptions);
+        
+        const audioBytes = audioBuffer.toString('base64');
+        
+        const audio = {
+          content: audioBytes,
+        };
+        
+        const config = {
+          encoding: 'WEBM_OPUS', // Default, can be adjusted based on audioFile.mimetype
+          sampleRateHertz: 48000,
+          languageCode: headers || 'en-US', // headers contains language from strategy
+        };
+        
+        const request = {
+          audio: audio,
+          config: config,
+        };
+        
+        const [response] = await client.recognize(request);
+        const transcription = response.results
+          .map(result => result.alternatives[0].transcript)
+          .join('\n');
+        
+        return transcription.trim();
+      } catch (error) {
+        logger.error(`Google Cloud STT request failed:`, error);
+        throw error;
+      }
+    }
+
+    // Standard HTTP request for other providers
     try {
       const response = await axios.post(url, data, { headers });
 
@@ -306,7 +391,7 @@ class STTService {
     try {
       const [provider, sttSchema] = await this.getProviderSchema(req);
       const language = req.body?.language || '';
-      const text = await this.sttRequest(provider, sttSchema, { audioBuffer, audioFile, language });
+      const text = await this.sttRequest(provider, sttSchema, { audioBuffer, audioFile, language }, req);
       res.json({ text });
     } catch (error) {
       logger.error('An error occurred while processing the audio:', error);

@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
@@ -101,11 +102,13 @@ class DirectiveStore {
         console.error('[DirectiveStore] Error cleaning up temp file:', cleanupError);
       }
 
+
       throw error;
     }
   }
 
   /**
+
    * Save directive history to disk
    * @param {DirectiveHistory} history
    * @returns {Promise<void>}
@@ -118,11 +121,13 @@ class DirectiveStore {
       this.historyCache = history;
     } catch (error) {
       console.error('[DirectiveStore] Error saving directive history:', error);
+
       throw error;
     }
   }
 
   /**
+
    * Get directive for a conversation
    * @param {string} conversationId
    * @returns {Promise<Directive|null>}
@@ -237,3 +242,4 @@ const directiveStore = new DirectiveStore();
 module.exports = DirectiveStore;
 module.exports.directiveStore = directiveStore;
 module.exports.default = DirectiveStore;
+

@@ -1,4 +1,5 @@
 const express = require('express');
+
 const { requireJwtAuth } = require('~/server/middleware');
 const { directiveStore } = require('~/server/agent/directive');
 
@@ -97,6 +98,7 @@ router.get('/presets', requireJwtAuth, async (req, res) => {
   } catch (error) {
     console.error('[Directive API] Error getting presets:', error);
     res.status(500).json({ message: 'Internal server error' });
+
   }
 });
 
