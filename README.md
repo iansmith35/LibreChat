@@ -92,10 +92,17 @@
   - Edit, Resubmit, and Continue Messages with Conversation branching  
   - Create and share prompts with specific users and groups
   - [Fork Messages & Conversations](https://www.librechat.ai/docs/features/fork) for Advanced Context control
+  - **NEW**: Directives for agent behavior, personality, and system context configuration
 
 - 💬 **Multimodal & File Interactions**:  
   - Upload and analyze images with Claude 3, GPT-4.5, GPT-4o, o1, Llama-Vision, and Gemini 📸  
   - Chat with Files using Custom Endpoints, OpenAI, Azure, Anthropic, AWS Bedrock, & Google 🗃️
+
+- 🔌 **Extensible Connectors System** (NEW - Scaffolded):
+  - OAuth-based integrations with external services
+  - Google OAuth and Rube.app connector scaffolds
+  - Service account support for cloud services
+  - See [FEATURE_IMPLEMENTATION_GUIDE.md](./FEATURE_IMPLEMENTATION_GUIDE.md) for details
 
 - 🌎 **Multilingual UI**:
   - English, 中文 (简体), 中文 (繁體), العربية, Deutsch, Español, Français, Italiano
@@ -113,6 +120,7 @@
   - Chat hands-free with Speech-to-Text and Text-to-Speech  
   - Automatically send and play Audio  
   - Supports OpenAI, Azure OpenAI, and Elevenlabs
+  - **NEW**: Google Cloud STT/TTS scaffolded (see [FEATURE_IMPLEMENTATION_GUIDE.md](./FEATURE_IMPLEMENTATION_GUIDE.md))
 
 - 📥 **Import & Export Conversations**:  
   - Import Conversations from LibreChat, ChatGPT, Chatbot UI  
