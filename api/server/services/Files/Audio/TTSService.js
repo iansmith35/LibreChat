@@ -4,6 +4,7 @@ const { genAzureEndpoint } = require('@librechat/api');
 const { extractEnvVariable, TTSProviders } = require('librechat-data-provider');
 const { getRandomVoiceId, createChunkProcessor, splitTextIntoChunks } = require('./streamAudio');
 const { getAppConfig } = require('~/server/services/Config');
+const { getGoogleCloudCredentials } = require('~/server/services/Connectors/GoogleCloud');
 
 /**
  * Service class for handling Text-to-Speech (TTS) operations.
@@ -19,6 +20,7 @@ class TTSService {
       [TTSProviders.AZURE_OPENAI]: this.azureOpenAIProvider.bind(this),
       [TTSProviders.ELEVENLABS]: this.elevenLabsProvider.bind(this),
       [TTSProviders.LOCALAI]: this.localAIProvider.bind(this),
+      [TTSProviders.GOOGLE_CLOUD]: this.googleCloudProvider.bind(this),
     };
   }
 
@@ -243,6 +245,31 @@ class TTSService {
   }
 
   /**
+   * Prepares the request for the Google Cloud TTS provider.
+   * @param {Object} ttsSchema - The TTS schema for Google Cloud.
+   * @param {string} input - The input text.
+   * @param {string} voice - The voice to use.
+   * @returns {Array} An array containing service account config, input, and voice.
+   */
+  googleCloudProvider(ttsSchema, input, voice) {
+    // For Google Cloud, we need to use the SDK directly
+    // Return config that will be used in a custom handler
+    const serviceAccountKey = extractEnvVariable(ttsSchema?.serviceAccountKey) || 
+                              process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+                              process.env.GOOGLE_CLOUD_KEY;
+    
+    if (!serviceAccountKey) {
+      throw new Error('Google Cloud credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CLOUD_KEY.');
+    }
+
+    // Default to UK English female voice as specified in requirements
+    const defaultVoice = process.env.TTS_DEFAULT_VOICE || 'en-GB-Wavenet-F';
+    const selectedVoice = voice || defaultVoice;
+
+    return [serviceAccountKey, input, selectedVoice];
+  }
+
+  /**
    * Sends a TTS request to the specified provider.
    * @async
    * @param {string} provider - The TTS provider to use.
@@ -254,13 +281,76 @@ class TTSService {
    * @returns {Promise<Object>} The axios response object.
    * @throws {Error} If the provider is invalid or the request fails.
    */
-  async ttsRequest(provider, ttsSchema, { input, voice, stream = true }) {
+  async ttsRequest(provider, ttsSchema, { input, voice, stream = true }, req = null) {
     const strategy = this.providerStrategies[provider];
     if (!strategy) {
       throw new Error('Invalid provider');
     }
 
     const [url, data, headers] = strategy.call(this, ttsSchema, input, voice, stream);
+
+    // Handle Google Cloud TTS separately using the SDK
+    if (provider === TTSProviders.GOOGLE_CLOUD) {
+      try {
+        const textToSpeech = require('@google-cloud/text-to-speech');
+        const { Readable } = require('stream');
+        
+        // Get credentials from connector or env var
+        let credentials = null;
+        if (req?.user?.id) {
+          credentials = getGoogleCloudCredentials(req.user.id);
+        }
+        
+        // Fall back to environment variable
+        if (!credentials && url) {
+          try {
+            credentials = JSON.parse(url);
+          } catch {
+            // url might be a file path
+            credentials = url;
+          }
+        }
+        
+        if (!credentials) {
+          throw new Error('Google Cloud credentials not available. Please configure GOOGLE_APPLICATION_CREDENTIALS or upload a service account via connectors.');
+        }
+        
+        const clientOptions = typeof credentials === 'string' 
+          ? { keyFilename: credentials }
+          : { credentials };
+        
+        const client = new textToSpeech.TextToSpeechClient(clientOptions);
+        
+        // Parse voice name to get language code
+        // Format: en-GB-Wavenet-F -> language: en-GB, name: en-GB-Wavenet-F
+        const voiceName = headers; // headers contains voice from strategy
+        const languageCode = voiceName.split('-').slice(0, 2).join('-');
+        
+        const request = {
+          input: { text: data },
+          voice: {
+            languageCode: languageCode,
+            name: voiceName,
+          },
+          audioConfig: {
+            audioEncoding: 'MP3',
+          },
+        };
+        
+        const [response] = await client.synthesizeSpeech(request);
+        
+        // Convert buffer to stream for compatibility
+        const audioStream = Readable.from(response.audioContent);
+        
+        return {
+          data: audioStream,
+          status: 200,
+        };
+      } catch (error) {
+        logger.error(`Google Cloud TTS request failed:`, error);
+        throw error;
+      }
+    }
 
     [data, headers].forEach(this.removeUndefined.bind(this));
 
@@ -300,7 +390,7 @@ class TTSService {
       const voice = await this.getVoice(ttsSchema, requestVoice);
 
       if (input.length < 4096) {
-        const response = await this.ttsRequest(provider, ttsSchema, { input, voice });
+        const response = await this.ttsRequest(provider, ttsSchema, { input, voice }, req);
         response.data.pipe(res);
         return;
       }
@@ -313,7 +403,7 @@ class TTSService {
             voice,
             input: chunk.text,
             stream: true,
-          });
+          }, req);
 
           logger.debug(`[textToSpeech] user: ${req?.user?.id} | writing audio stream`);
           await new Promise((resolve) => {
