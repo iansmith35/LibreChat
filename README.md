@@ -147,6 +147,117 @@ Click on the thumbnail to open the video☝️
 
 ---
 
+## 🎙️ Speech-to-Speech & Advanced Features
+
+LibreChat now includes comprehensive speech-to-speech capabilities, an extensible connector system for third-party integrations, persistent memory across conversations, and a directive system for agent customization.
+
+### Speech-to-Speech
+
+Record audio, transcribe it to text (STT), and have agent responses read aloud (TTS) with support for multiple providers:
+
+- **Supported Providers:** OpenAI, Azure OpenAI, Google Cloud Speech/TTS
+- **Google Cloud Default Voice:** UK English female (en-GB-Wavenet-F)
+- **Endpoints:**
+  - `POST /api/speech/stt` - Upload audio file, receive transcript
+  - `POST /api/speech/tts` - Send text, receive audio stream
+
+### Connectors
+
+Connect external services and APIs to extend LibreChat functionality:
+
+- **Google OAuth:** Sign in with Google and access Google services
+- **Google Cloud:** Upload service account for Speech/TTS integration
+- **Rube.app:** OAuth and API-key based connector (scaffold)
+- **Generic API-key connectors:** Extensible system for future integrations
+
+**Endpoints:**
+- `GET /api/connectors/list` - List all connected services
+- `GET /api/connectors/google/login` - Initiate Google OAuth
+- `POST /api/connectors/google-cloud/upload` - Upload service account JSON
+- `POST /api/connectors/rube/api-key` - Connect with rube.app API key
+
+### Directives
+
+Customize agent behavior per conversation with system prompts, personality, and memory policies:
+
+- **System Prompt:** Override default instructions
+- **Personality:** Define agent tone and style
+- **Directives:** Specific rules and constraints
+- **Memory Policy:** Control how agent uses persistent memory
+
+**Endpoints:**
+- `GET /api/agents/directive/:conversationId` - Retrieve directive
+- `POST /api/agents/directive/:conversationId` - Save directive
+
+### Persistent Memory
+
+Agents can remember information across conversations:
+
+- **File-backed storage:** JSON files with atomic writes
+- **Per-user, per-conversation:** Isolated memory spaces
+- **Token limits:** Configurable memory capacity
+- **Endpoints:**
+  - `GET /api/memories` - List all memories
+  - `POST /api/memories` - Create memory
+  - `PATCH /api/memories/:key` - Update memory
+  - `DELETE /api/memories/:key` - Delete memory
+
+### Environment Variables
+
+Configure these features via environment variables:
+
+```bash
+# Google OAuth
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3080/api/connectors/google/callback
+
+# Google Cloud Speech/TTS
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+# OR
+GOOGLE_CLOUD_KEY={"type":"service_account",...}
+GOOGLE_CLOUD_PROJECT=your-project-id
+
+# TTS Default Voice (UK English female)
+TTS_DEFAULT_VOICE=en-GB-Wavenet-F
+
+# Rube.app (Optional)
+RUBE_CLIENT_ID=your_rube_client_id
+RUBE_CLIENT_SECRET=your_rube_client_secret
+RUBE_OAUTH_REDIRECT_URI=http://localhost:3080/api/connectors/rube/callback
+
+# Storage Paths
+DIRECTIVE_STORE_PATH=./data/directives
+MEMORY_STORE_PATH=./data/memory
+
+# Session Secret (Required for OAuth)
+SESSION_SECRET=your_session_secret
+```
+
+### Security Notes
+
+- **No secrets in code:** All credentials managed via environment variables
+- **In-memory tokens:** OAuth tokens stored in-memory (session-scoped)
+- **Encrypted storage recommended:** For production, use encrypted database or Redis
+- **Rate limiting:** Speech endpoints include rate limiting
+- **Upload limits:** Audio files limited to 10MB
+
+### Getting Started
+
+1. **Configure environment variables** in your `.env` file
+2. **Obtain Google Cloud credentials:**
+   - Create a project in Google Cloud Console
+   - Enable Speech-to-Text and Text-to-Speech APIs
+   - Create a service account and download JSON key
+   - Set `GOOGLE_APPLICATION_CREDENTIALS` or upload via connectors
+3. **Start the server** and access the UI
+4. **Connect services** via Settings > Connectors
+5. **Test speech-to-speech** with the microphone button in chat
+
+For detailed setup instructions, see the [documentation](https://librechat.ai/docs).
+
+---
+
 ## 🌐 Resources
 
 **GitHub Repo:**

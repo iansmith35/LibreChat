@@ -144,11 +144,13 @@ const startServer = async () => {
 
   app.use('/api/tags', routes.tags);
   app.use('/api/mcp', routes.mcp);
+
   
   /* New routes for speech-to-speech, memory, directives, and connectors */
   app.use('/api/speech', routes.speech);
   app.use('/api/memory', routes.memory);
   app.use('/api/agent/directive', routes.directive);
+
   app.use('/api/connectors', routes.connectors);
 
   app.use(ErrorController);

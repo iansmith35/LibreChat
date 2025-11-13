@@ -1,4 +1,40 @@
 const express = require('express');
+<<<<<<
+< copilot/implement-speech-to-speech-supportconst { logger } = require('@librechat/data-schemas');
+const { requireJwtAuth } = require('~/server/middleware');
+const { 
+  initiateRubeOAuth,
+  handleRubeOAuthCallback,
+  connectRubeAPIKey,
+  disconnectRube,
+  getRubeStatus
+} = require('~/server/services/Connectors/Rube');
+
+const router = express.Router();
+
+router.use(requireJwtAuth);
+
+/**
+ * GET /connectors/rube/login
+ * Initiates rube.app OAuth flow.
+ */
+router.get('/login', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { state, authUrl } = await initiateRubeOAuth(userId);
+    
+    req.session.rubeOAuthState = state;
+    res.redirect(authUrl);
+  } catch (error) {
+    logger.error('[Rube] Login error:', error);
+    res.status(500).json({ error: 'Failed to initiate OAuth flow' });
+  }
+});
+
+/**
+ * GET /connectors/rube/callback
+ * Handles rube.app OAuth callback.
+
 const router = express.Router();
 const { requireJwtAuth } = require('../../middleware');
 const { logger } = require('@librechat/data-schemas');
@@ -48,10 +84,36 @@ router.get('/login', requireJwtAuth, (req, res) => {
 /**
  * Handle OAuth callback
  * GET /api/connectors/rube/callback
+
  */
 router.get('/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
+
+    const userId = req.user.id;
+    
+    if (!req.session.rubeOAuthState || req.session.rubeOAuthState !== state) {
+      throw new Error('Invalid state parameter');
+    }
+    
+    delete req.session.rubeOAuthState;
+    await handleRubeOAuthCallback(userId, code);
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>OAuth Success</title></head>
+        <body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: 'oauth-success', provider: 'rube' }, '*');
+              window.close();
+            } else {
+              window.location.href = '/';
+            }
+          </script>
+          <p>Authentication successful! You can close this window.</p>
+
 
     if (!code) {
       return res.status(400).send('Authorization code not provided');
@@ -85,10 +147,20 @@ router.get('/callback', async (req, res) => {
             window.close();
           </script>
           <p>Rube.app authentication successful! You can close this window.</p>
+
         </body>
       </html>
     `);
   } catch (error) {
+
+    logger.error('[Rube] Callback error:', error);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>OAuth Error</title></head>
+        <body>
+          <p>Authentication failed: ${error.message}</p>
+
     logger.error('[RubeOAuth] Error in OAuth callback:', error);
     res.send(`
       <html>
@@ -98,6 +170,7 @@ router.get('/callback', async (req, res) => {
             window.close();
           </script>
           <p>Authentication failed. Please try again.</p>
+
         </body>
       </html>
     `);
@@ -105,6 +178,56 @@ router.get('/callback', async (req, res) => {
 });
 
 /**
+
+ * POST /connectors/rube/api-key
+ * Connects rube.app using an API key.
+ * Body: { apiKey: string }
+ */
+router.post('/api-key', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { apiKey } = req.body;
+    
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    
+    await connectRubeAPIKey(userId, apiKey);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[Rube] API key error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /connectors/rube/status
+ * Gets the rube.app connection status.
+ */
+router.get('/status', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const status = await getRubeStatus(userId);
+    res.json(status);
+  } catch (error) {
+    logger.error('[Rube] Status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /connectors/rube/disconnect
+ * Disconnects rube.app.
+ */
+router.post('/disconnect', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await disconnectRube(userId);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('[Rube] Disconnect error:', error);
+    res.status(500).json({ error: error.message });
+=======
  * Connect via API key (alternative to OAuth)
  * POST /api/connectors/rube/connect
  */
@@ -168,7 +291,8 @@ router.post('/disconnect', requireJwtAuth, async (req, res) => {
   } catch (error) {
     logger.error('[RubeOAuth] Error disconnecting:', error);
     res.status(500).json({ error: 'Failed to disconnect' });
-  }
+
+  
 });
 
 module.exports = router;

@@ -1556,6 +1556,10 @@ export enum STTProviders {
    * Provider for Microsoft Azure STT
    */
   AZURE_OPENAI = 'azureOpenAI',
+  /**
+   * Provider for Google Cloud STT
+   */
+  GOOGLE_CLOUD = 'googleCloud',
 }
 
 export enum TTSProviders {
@@ -1575,6 +1579,10 @@ export enum TTSProviders {
    * Provider for LocalAI TTS
    */
   LOCALAI = 'localai',
+  /**
+   * Provider for Google Cloud TTS
+   */
+  GOOGLE_CLOUD = 'googleCloud',
 }
 
 /** Enum for app-wide constants */

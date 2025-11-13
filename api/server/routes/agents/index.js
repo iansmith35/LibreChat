@@ -11,6 +11,7 @@ const {
 } = require('~/server/middleware');
 const { v1 } = require('./v1');
 const chat = require('./chat');
+const directive = require('./directive');
 
 const { LIMIT_CONCURRENT_MESSAGES, LIMIT_MESSAGE_IP, LIMIT_MESSAGE_USER } = process.env ?? {};
 
@@ -39,5 +40,11 @@ if (isEnabled(LIMIT_MESSAGE_USER)) {
 
 chatRouter.use('/', chat);
 router.use('/chat', chatRouter);
+
+/**
+ * Directive route for managing conversation directives.
+ * @route GET|POST /agents/directive/:conversationId
+ */
+router.use('/directive', directive);
 
 module.exports = router;
