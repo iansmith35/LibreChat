@@ -1,4 +1,5 @@
 const express = require('express');
+
 const { logger } = require('@librechat/data-schemas');
 
 const router = express.Router();
@@ -109,6 +110,7 @@ router.post('/upload-service-account', (req, res) => {
     message:
       'Service account upload is scaffolded but not fully implemented. Use GOOGLE_APPLICATION_CREDENTIALS environment variable instead.',
   });
+
 });
 
 module.exports = router;

@@ -29,6 +29,12 @@ const edit = require('./edit');
 const keys = require('./keys');
 const user = require('./user');
 const mcp = require('./mcp');
+const directive = require('./directive');
+const memory = require('./memory');
+const connectors = require('./connectors');
+const speech = require('./speech');
+
+const connectors = require('./connectors');
 
 module.exports = {
   mcp,
@@ -62,4 +68,10 @@ module.exports = {
   categories,
   staticRoute,
   accessPermissions,
+
+  directive,
+  memory,
+  connectors,
+  speech,
+
 };

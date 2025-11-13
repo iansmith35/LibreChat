@@ -1,6 +1,8 @@
 const express = require('express');
+
 const { requireJwtAuth } = require('~/server/middleware');
 const google = require('./google');
+
 const rube = require('./rube');
 
 const router = express.Router();
@@ -8,6 +10,7 @@ const router = express.Router();
 router.use(requireJwtAuth);
 
 /**
+
  * GET /api/connectors/list
  * Returns the list of connected connectors for the authenticated user.
  */
@@ -30,7 +33,7 @@ router.get('/list', async (req, res) => {
       },
     };
 
-    res.json({ connectors });
+=======    res.json({ connectors });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -38,6 +41,7 @@ router.get('/list', async (req, res) => {
 
 /**
  * Google OAuth routes
+
  * /api/connectors/google/*
  */
 router.use('/google', google);
@@ -47,5 +51,22 @@ router.use('/google', google);
  * /api/connectors/rube/*
  */
 router.use('/rube', rube);
+=======
+ * @route /connectors/google/*
+ */
+router.use('/google', googleOAuth);
+
+/**
+ * Google Cloud routes
+ * @route /connectors/google-cloud/*
+ */
+router.use('/google-cloud', googleCloud);
+
+/**
+ * Rube.app routes
+ * @route /connectors/rube/*
+ */
+router.use('/rube', rube);
+
 
 module.exports = router;
