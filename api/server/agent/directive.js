@@ -1,40 +1,37 @@
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
+const fs = require('fs');
+const path = require('path');
+const { promisify } = require('util');
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
 const rename = promisify(fs.rename);
 const unlink = promisify(fs.unlink);
 
-interface Directive {
-  conversationId: string;
-  systemPrompt: string;
-  personality?: string;
-  memoryPolicy?: string;
-  lastUpdated: number;
-}
+/**
+ * @typedef {Object} Directive
+ * @property {string} conversationId
+ * @property {string} systemPrompt
+ * @property {string} [personality]
+ * @property {string} [memoryPolicy]
+ * @property {number} lastUpdated
+ */
 
-interface DirectiveHistory {
-  [conversationId: string]: Directive[];
-}
+/**
+ * @typedef {Object.<string, Directive[]>} DirectiveHistory
+ */
 
 class DirectiveStore {
-  private storePath: string;
-  private tempPath: string;
-  private historyPath: string;
-  private cache: { [conversationId: string]: Directive } = {};
-  private historyCache: DirectiveHistory | null = null;
-
-  constructor(storagePath?: string) {
+  constructor(storagePath) {
     const baseDir = storagePath || path.join(process.cwd(), 'data', 'directives');
     this.storePath = path.join(baseDir, 'directives.json');
     this.tempPath = path.join(baseDir, 'directives.json.tmp');
     this.historyPath = path.join(baseDir, 'directive-history.json');
+    this.cache = {};
+    this.historyCache = null;
     this.ensureDirectory(baseDir);
   }
 
-  private ensureDirectory(dir: string): void {
+  ensureDirectory(dir) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -42,8 +39,9 @@ class DirectiveStore {
 
   /**
    * Load directives from disk
+   * @returns {Promise<Object.<string, Directive>>}
    */
-  private async loadDirectives(): Promise<{ [conversationId: string]: Directive }> {
+  async loadDirectives() {
     try {
       if (!fs.existsSync(this.storePath)) {
         return {};
@@ -59,8 +57,9 @@ class DirectiveStore {
 
   /**
    * Load directive history from disk
+   * @returns {Promise<DirectiveHistory>}
    */
-  private async loadHistory(): Promise<DirectiveHistory> {
+  async loadHistory() {
     if (this.historyCache) {
       return this.historyCache;
     }
@@ -83,8 +82,10 @@ class DirectiveStore {
 
   /**
    * Save directives to disk with atomic write
+   * @param {Object.<string, Directive>} directives
+   * @returns {Promise<void>}
    */
-  private async saveDirectives(directives: { [conversationId: string]: Directive }): Promise<void> {
+  async saveDirectives(directives) {
     try {
       await writeFile(this.tempPath, JSON.stringify(directives, null, 2), 'utf-8');
       await rename(this.tempPath, this.storePath);
@@ -106,8 +107,10 @@ class DirectiveStore {
 
   /**
    * Save directive history to disk
+   * @param {DirectiveHistory} history
+   * @returns {Promise<void>}
    */
-  private async saveHistory(history: DirectiveHistory): Promise<void> {
+  async saveHistory(history) {
     try {
       const tempHistoryPath = `${this.historyPath}.tmp`;
       await writeFile(tempHistoryPath, JSON.stringify(history, null, 2), 'utf-8');
@@ -121,25 +124,27 @@ class DirectiveStore {
 
   /**
    * Get directive for a conversation
+   * @param {string} conversationId
+   * @returns {Promise<Directive|null>}
    */
-  async getDirective(conversationId: string): Promise<Directive | null> {
+  async getDirective(conversationId) {
     const directives = await this.loadDirectives();
     return directives[conversationId] || null;
   }
 
   /**
    * Save or update directive for a conversation
+   * @param {string} conversationId
+   * @param {string} systemPrompt
+   * @param {string} [personality]
+   * @param {string} [memoryPolicy]
+   * @returns {Promise<Directive>}
    */
-  async saveDirective(
-    conversationId: string,
-    systemPrompt: string,
-    personality?: string,
-    memoryPolicy?: string,
-  ): Promise<Directive> {
+  async saveDirective(conversationId, systemPrompt, personality, memoryPolicy) {
     const directives = await this.loadDirectives();
     const history = await this.loadHistory();
 
-    const directive: Directive = {
+    const directive = {
       conversationId,
       systemPrompt,
       personality,
@@ -170,16 +175,20 @@ class DirectiveStore {
 
   /**
    * Get directive history for a conversation
+   * @param {string} conversationId
+   * @returns {Promise<Directive[]>}
    */
-  async getDirectiveHistory(conversationId: string): Promise<Directive[]> {
+  async getDirectiveHistory(conversationId) {
     const history = await this.loadHistory();
     return history[conversationId] || [];
   }
 
   /**
    * Delete directive for a conversation
+   * @param {string} conversationId
+   * @returns {Promise<boolean>}
    */
-  async deleteDirective(conversationId: string): Promise<boolean> {
+  async deleteDirective(conversationId) {
     const directives = await this.loadDirectives();
     
     if (!directives[conversationId]) {
@@ -193,12 +202,12 @@ class DirectiveStore {
 
   /**
    * Get all presets (directives that can be reused)
-   * For now, we'll just return the unique directives from history
+   * @returns {Promise<Directive[]>}
    */
-  async getPresets(): Promise<Directive[]> {
+  async getPresets() {
     const history = await this.loadHistory();
-    const presets: Directive[] = [];
-    const seen = new Set<string>();
+    const presets = [];
+    const seen = new Set();
 
     Object.values(history).forEach((conversationHistory) => {
       conversationHistory.forEach((directive) => {
@@ -216,14 +225,15 @@ class DirectiveStore {
   /**
    * Clear cache (for testing)
    */
-  clearCache(): void {
+  clearCache() {
     this.cache = {};
     this.historyCache = null;
   }
 }
 
 // Export singleton instance
-export const directiveStore = new DirectiveStore();
+const directiveStore = new DirectiveStore();
 
-export type { Directive, DirectiveHistory };
-export default DirectiveStore;
+module.exports = DirectiveStore;
+module.exports.directiveStore = directiveStore;
+module.exports.default = DirectiveStore;

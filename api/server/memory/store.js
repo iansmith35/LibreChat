@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
+const fs = require('fs');
+const path = require('path');
+const { promisify } = require('util');
 
 const writeFile = promisify(fs.writeFile);
 const readFile = promisify(fs.readFile);
@@ -8,31 +8,29 @@ const mkdir = promisify(fs.mkdir);
 const rename = promisify(fs.rename);
 const unlink = promisify(fs.unlink);
 
-interface MemoryItem {
-  id: string;
-  conversationId: string;
-  content: string;
-  timestamp: number;
-  enabled: boolean;
-}
+/**
+ * @typedef {Object} MemoryItem
+ * @property {string} id
+ * @property {string} conversationId
+ * @property {string} content
+ * @property {number} timestamp
+ * @property {boolean} enabled
+ */
 
-interface MemoryStore {
-  [conversationId: string]: MemoryItem[];
-}
+/**
+ * @typedef {Object.<string, MemoryItem[]>} MemoryStore
+ */
 
 class FileBackedMemoryStore {
-  private storePath: string;
-  private tempPath: string;
-  private cache: MemoryStore | null = null;
-
-  constructor(storagePath?: string) {
+  constructor(storagePath) {
     const baseDir = storagePath || path.join(process.cwd(), 'data', 'memory');
     this.storePath = path.join(baseDir, 'memory-store.json');
     this.tempPath = path.join(baseDir, 'memory-store.json.tmp');
+    this.cache = null;
     this.ensureDirectory(baseDir);
   }
 
-  private ensureDirectory(dir: string): void {
+  ensureDirectory(dir) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
@@ -40,8 +38,9 @@ class FileBackedMemoryStore {
 
   /**
    * Load memory store from disk with atomic read
+   * @returns {Promise<MemoryStore>}
    */
-  async load(): Promise<MemoryStore> {
+  async load() {
     if (this.cache) {
       return this.cache;
     }
@@ -64,8 +63,10 @@ class FileBackedMemoryStore {
 
   /**
    * Save memory store to disk with atomic write (write to temp, then rename)
+   * @param {MemoryStore} store
+   * @returns {Promise<void>}
    */
-  async save(store: MemoryStore): Promise<void> {
+  async save(store) {
     try {
       // Write to temporary file first
       await writeFile(this.tempPath, JSON.stringify(store, null, 2), 'utf-8');
@@ -93,23 +94,28 @@ class FileBackedMemoryStore {
 
   /**
    * Get memory items for a conversation
+   * @param {string} conversationId
+   * @returns {Promise<MemoryItem[]>}
    */
-  async getMemoryItems(conversationId: string): Promise<MemoryItem[]> {
+  async getMemoryItems(conversationId) {
     const store = await this.load();
     return store[conversationId] || [];
   }
 
   /**
    * Add a memory item to a conversation
+   * @param {string} conversationId
+   * @param {string} content
+   * @returns {Promise<MemoryItem>}
    */
-  async addMemoryItem(conversationId: string, content: string): Promise<MemoryItem> {
+  async addMemoryItem(conversationId, content) {
     const store = await this.load();
     
     if (!store[conversationId]) {
       store[conversationId] = [];
     }
 
-    const memoryItem: MemoryItem = {
+    const memoryItem = {
       id: `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       conversationId,
       content,
@@ -125,12 +131,12 @@ class FileBackedMemoryStore {
 
   /**
    * Update a memory item
+   * @param {string} conversationId
+   * @param {string} itemId
+   * @param {Partial<MemoryItem>} updates
+   * @returns {Promise<MemoryItem|null>}
    */
-  async updateMemoryItem(
-    conversationId: string,
-    itemId: string,
-    updates: Partial<MemoryItem>,
-  ): Promise<MemoryItem | null> {
+  async updateMemoryItem(conversationId, itemId, updates) {
     const store = await this.load();
     
     if (!store[conversationId]) {
@@ -158,8 +164,11 @@ class FileBackedMemoryStore {
 
   /**
    * Delete a memory item
+   * @param {string} conversationId
+   * @param {string} itemId
+   * @returns {Promise<boolean>}
    */
-  async deleteMemoryItem(conversationId: string, itemId: string): Promise<boolean> {
+  async deleteMemoryItem(conversationId, itemId) {
     const store = await this.load();
     
     if (!store[conversationId]) {
@@ -179,16 +188,20 @@ class FileBackedMemoryStore {
 
   /**
    * Get enabled memory items for a conversation (for injection into prompts)
+   * @param {string} conversationId
+   * @returns {Promise<MemoryItem[]>}
    */
-  async getEnabledMemoryItems(conversationId: string): Promise<MemoryItem[]> {
+  async getEnabledMemoryItems(conversationId) {
     const items = await this.getMemoryItems(conversationId);
     return items.filter((item) => item.enabled);
   }
 
   /**
    * Clear all memory for a conversation
+   * @param {string} conversationId
+   * @returns {Promise<void>}
    */
-  async clearConversationMemory(conversationId: string): Promise<void> {
+  async clearConversationMemory(conversationId) {
     const store = await this.load();
     delete store[conversationId];
     await this.save(store);
@@ -197,13 +210,14 @@ class FileBackedMemoryStore {
   /**
    * Clear cache (for testing or forced reload)
    */
-  clearCache(): void {
+  clearCache() {
     this.cache = null;
   }
 }
 
 // Export singleton instance
-export const memoryStore = new FileBackedMemoryStore();
+const memoryStore = new FileBackedMemoryStore();
 
-export type { MemoryItem, MemoryStore };
-export default FileBackedMemoryStore;
+module.exports = FileBackedMemoryStore;
+module.exports.memoryStore = memoryStore;
+module.exports.default = FileBackedMemoryStore;
